@@ -6,7 +6,7 @@ on:
 jobs:
   run-algo:
     runs-on: ubuntu-latest
-    timeout-minutes: 360  # 6 hours
+    timeout-minutes: 1200  # 6 hours
 
     steps:
       # ------------------ Checkout Repo ------------------
