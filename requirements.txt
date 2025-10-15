@@ -1,1 +1,11 @@
-
+ta
+yfinance
+requests
+pyotp
+pandas
+SmartApi
+logzero
+websocket-client
+pyotp
+smartapi-python
+datetime
