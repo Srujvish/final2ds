@@ -46,9 +46,9 @@ ACCUMULATION_DAYS_LOOKBACK = 10
 
 # --------- EXPIRIES FOR KEPT INDICES ---------
 EXPIRIES = {
-    "NIFTY": "11 NOV 2025",
+    "NIFTY": "18 NOV 2025",
     "BANKNIFTY": "25 NOV 2025", 
-    "SENSEX": "13 OCT 2025"
+    "SENSEX": "20 NOV 2025"
 }
 
 # --------- STRATEGY TRACKING ---------
