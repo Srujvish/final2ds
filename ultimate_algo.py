@@ -219,6 +219,59 @@ def fetch_option_price(symbol, retries=3, delay=3):
             time.sleep(delay)
     return None
 
+# --------- FIXED: ENHANCED SYMBOL VALIDATION ---------
+def validate_option_symbol(index, symbol, strike, opttype):
+    """Enhanced validation to ensure only specified expiry symbols are used"""
+    try:
+        # Get the expected expiry for this index
+        expected_expiry = EXPIRIES.get(index)
+        if not expected_expiry:
+            return False
+            
+        # Parse expected expiry date
+        expected_dt = datetime.strptime(expected_expiry, "%d %b %Y")
+        
+        # Check if symbol contains the expected expiry
+        # For SENSEX: SENSEX25NOV25000CE format
+        if index == "SENSEX":
+            year_short = expected_dt.strftime("%y")
+            month_code = expected_dt.strftime("%b").upper()
+            expected_pattern = f"SENSEX{year_short}{month_code}"
+            return expected_pattern in symbol.upper()
+        else:
+            # For NIFTY/BANKNIFTY: NIFTY18NOV2521500CE format
+            expected_pattern = expected_dt.strftime("%d%b%y").upper()
+            return expected_pattern in symbol.upper()
+            
+    except Exception as e:
+        print(f"Symbol validation error: {e}")
+        return False
+
+# --------- FIXED: GET OPTION SYMBOL WITH EXPIRY VALIDATION ---------
+def get_option_symbol(index, expiry_str, strike, opttype):
+    """FIXED: Each index uses its own isolated strike calculation with expiry validation"""
+    try:
+        dt = datetime.strptime(expiry_str, "%d %b %Y")
+        
+        if index == "SENSEX":
+            year_short = dt.strftime("%y")
+            month_code = dt.strftime("%b").upper()
+            day = dt.strftime("%d")
+            symbol = f"SENSEX{year_short}{month_code}{strike}{opttype}"
+        else:
+            symbol = f"{index}{dt.strftime('%d%b%y').upper()}{strike}{opttype}"
+        
+        # Validate the generated symbol
+        if validate_option_symbol(index, symbol, strike, opttype):
+            return symbol
+        else:
+            print(f"⚠️ Generated symbol validation failed: {symbol}")
+            return None
+            
+    except Exception as e:
+        print(f"Error generating symbol: {e}")
+        return None
+
 # --------- DETECT LIQUIDITY ZONE ---------
 def detect_liquidity_zone(df, lookback=20):
     high_series = ensure_series(df['High']).dropna()
@@ -1171,19 +1224,6 @@ def analyze_index_signal(index):
 
     return None
 
-# --------- FIXED: SYMBOL FORMAT FOR KEPT INDICES (ISOLATED STRIKES) ---------
-def get_option_symbol(index, expiry_str, strike, opttype):
-    """FIXED: Each index uses its own isolated strike calculation"""
-    dt = datetime.strptime(expiry_str, "%d %b %Y")
-    
-    if index == "SENSEX":
-        year_short = dt.strftime("%y")
-        month_code = dt.strftime("%b").upper()
-        day = dt.strftime("%d")
-        return f"SENSEX{year_short}{month_code}{strike}{opttype}"
-    else:
-        return f"{index}{dt.strftime('%d%b%y').upper()}{strike}{opttype}"
-
 # --------- INSTITUTIONAL FLOW CHECKS ---------
 def institutional_flow_signal(index, df5):
     try:
@@ -1528,7 +1568,7 @@ def send_individual_signal_reports():
     # 🚨 COMPULSORY CONFIRMATION
     send_telegram("✅ END OF DAY REPORTS COMPLETED! See you tomorrow at 9:15 AM! 🚀")
 
-# --------- FIXED: UPDATED SIGNAL SENDING WITH INSTITUTIONAL TARGETS ---------
+# --------- FIXED: UPDATED SIGNAL SENDING WITH EXPIRY VALIDATION ---------
 def send_signal(index, side, df, fakeout, strategy_key):
     global signal_counter, all_generated_signals
     
@@ -1544,10 +1584,16 @@ def send_signal(index, side, df, fakeout, strategy_key):
     if not can_send_signal(index, strike, side):
         return
         
-    # 🚨 FIXED: Each index only sends its own symbol with its own strike
+    # 🚨 FIXED: Each index only sends its own symbol with its own expiry validation
     symbol = get_option_symbol(index, EXPIRIES[index], strike, side)
+    
+    if symbol is None:
+        send_telegram(f"⚠️ {index}: Could not generate valid symbol for strike {strike} {side}. Signal skipped.")
+        return
+    
     option_price = fetch_option_price(symbol)
     if not option_price: 
+        send_telegram(f"⚠️ {index}: Could not fetch price for {symbol}. Signal skipped.")
         return
     
     entry = round(option_price)
@@ -1631,6 +1677,7 @@ def send_signal(index, side, df, fakeout, strategy_key):
     all_generated_signals.append(signal_data.copy())
     
     msg = (f"🟢 {index} {strike} {side}\n"
+           f"SYMBOL: {symbol}\n"
            f"ABOVE {entry}\n"
            f"TARGETS: {targets_str}\n"
            f"SL: {sl}\n"
@@ -1774,7 +1821,8 @@ while True:
                          "✅ Institutional Targets with Bigger Moves\n"
                          "✅ Expiry Day Gamma Blast After 1 PM\n"
                          "✅ Signal Deduplication & Cooldown\n"
-                         "✅ Guaranteed EOD Reports at 3:30 PM")
+                         "✅ Guaranteed EOD Reports at 3:30 PM\n"
+                         "✅ STRICT EXPIRY ENFORCEMENT - Only specified expiries")
             STARTED_SENT = True
             STOP_SENT = False
             MARKET_CLOSED_SENT = False
