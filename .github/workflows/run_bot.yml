@@ -1,7 +1,10 @@
 name: 20-Hour Algo Run
 
 on:
-  workflow_dispatch:  # Manual trigger only
+  schedule:
+    # 8:45 AM IST = 03:15 UTC
+    - cron: "15 3 * * 1-5"
+  workflow_dispatch:  # Manual trigger also available
 
 jobs:
   run-algo:
